@@ -6,7 +6,7 @@ Apple TV applications can display layered images, stored as `.lsr` files, basica
 [Up to five layers](https://developer.apple.com/library/archive/documentation/Xcode/Reference/xcode_ref-Asset_Catalog_Format/LSRFormatOverview.html#//apple_ref/doc/uid/TP40015170-CH44-SW1) can be supplied with sRGB or P3 color profiles, and in normal "@1x" or @2x scale (there is no @1x, but we use this shortcut in the following). Which variants must be provided depends on the use case, for example icon specifications are provided in the [tvOS Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/tvos/icons-and-images/app-icon/):
 
 - The app icon is a 400 x 240 layered image, with a 400px x 240px @1x sRGB variant, and a 800x480px @2x sRGB (or P3 if possible) variant for each layer. Each layer must be a PNG.
-- The App Store icon is a 1280px × 768 layered image with a single 1280px x 768px @1x sRGB variant (this is not explicitly documented the image is sRGB, but I guess the most common color profile has to be used). Each layer must be a PNG.
+- The App Store icon is a 1280px × 768 layered image with a 1280px x 768px @1x sRGB variant and an optional P3 variant (most notably if you used P3 for the app icon, so that both look the same). Each layer must be a PNG.
 
 ### Tools
 
@@ -16,7 +16,7 @@ Apple provides a toolset for `.lsr` image generation on its [resource page](http
 - [A Photoshop exporter](https://itunespartner.apple.com/assets/downloads/ParallaxExporter_Apps.zip) to generate an `.lsr` from official templates right within Photoshop. This exporter namely relies on the naming of the root layer which must be kept as is so that content is correctly found and identified (individual layers can apparently be freely named).
 - [Parallax Previewer](http://itunespartner.apple.com/assets/downloads/Parallax%20Previewer.dmg) to check an `.lsr` or merge two `.lsr` files into one and export the result.
 
-Documentation is available as PDF files in these `dmg` installers. Note that the Photoshop exporter generates a single variant for each layer (@1x sRGB, @2x P3 or @2x sRGB). Creating an app icon according to the above specifications therefore requires two exports and a merge in Parallax Previewer. A single export suffies for an App Store icon.
+Documentation is available as PDF files in these `dmg` installers. Note that the Photoshop exporter generates a single variant for each layer (@1x sRGB, @2x P3 or @2x sRGB). Creating an app icon according to the above specifications therefore requires two exports and a merge in Parallax Previewer.
 
 ### Fixing the tools
 
@@ -45,6 +45,16 @@ To export an app icon, e.g. with the best setup sRGB@1x and P3@2x:
 
 - Use the sRGB normal template to design the icon and use the exporter to get the corresponding `.lsr`.
 - Use the P3 @2x template to design the high resolution variant and use the exporter to get a second corresponding `.lsr`.
+- Open the first `.lsr` with the Parallax Previewer tool.
+- Use File > Merge to merge the second `.lsr` into the first one. Each layer should have a normal and high quality variant you can switch between.
+- Use File > Export > LSR... to export the merged `.lsr`, which can then be dragged and dropped onto an Xcode asset catalog. No warnings should be displayed and all resources should be in place with correct color profile.
+
+### Exporting an App Store icon
+
+To export an App Store icon, e.g. with the best setup sRGB@ and SRGB:
+
+- Use the sRGB normal template to design the icon and use the exporter to get the corresponding `.lsr`.
+- Use the P3 normal template to design the P3 variant and use the exporter to get a second corresponding `.lsr`.
 - Open the first `.lsr` with the Parallax Previewer tool.
 - Use File > Merge to merge the second `.lsr` into the first one. Each layer should have a normal and high quality variant you can switch between.
 - Use File > Export > LSR... to export the merged `.lsr`, which can then be dragged and dropped onto an Xcode asset catalog. No warnings should be displayed and all resources should be in place with correct color profile.
