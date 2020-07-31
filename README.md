@@ -3,10 +3,10 @@ Layered image (.lsr) generation fix for tvOS
 
 Apple TV applications can display layered images, stored as `.lsr` files, basically a zip of all layers with JSON metadata describing them (size, relative, position, color profile, etc.). More information is available from the [official documentation](https://developer.apple.com/library/archive/documentation/Xcode/Reference/xcode_ref-Asset_Catalog_Format/LSRFormatOverview.html#//apple_ref/doc/uid/TP40015170-CH44-SW1).
 
-[Up to five layers](https://developer.apple.com/library/archive/documentation/Xcode/Reference/xcode_ref-Asset_Catalog_Format/LSRFormatOverview.html#//apple_ref/doc/uid/TP40015170-CH44-SW1) can be supplied with sRGB or P3 color profiles, and in normal "@1x" or @2x scale (there is no @1x, but we use this shortcut in the following). Which variants must be provided depends on the use case, for example icon specifications are provided in the [tvOS Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/tvos/icons-and-images/app-icon/):
+[Up to five layers](https://developer.apple.com/library/archive/documentation/Xcode/Reference/xcode_ref-Asset_Catalog_Format/LSRFormatOverview.html#//apple_ref/doc/uid/TP40015170-CH44-SW1) can be supplied with sRGB or P3 color profiles, and in omitted, @1x or @2x scale. Which variants must be provided depends on the use case, for example icon specifications are provided in the [tvOS Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/tvos/icons-and-images/app-icon/):
 
 - The app icon is a 400 x 240 layered image, with a 400px x 240px @1x sRGB variant, and a 800x480px @2x sRGB (or P3 if possible) variant for each layer. Each layer must be a PNG.
-- The App Store icon is a 1280px × 768 layered image with a 1280px x 768px @1x sRGB variant and an optional P3 variant (most notably if you used P3 for the app icon, so that both look the same). Each layer must be a PNG.
+- The App Store icon is a 1280 × 768 layered image, with a 1280 x 768 sRGB variant and an optional P3 variant of the same size. Each layer must be a PNG.
 
 ### Tools
 
@@ -16,45 +16,54 @@ Apple provides a toolset for `.lsr` image generation on its [resource page](http
 - [A Photoshop exporter](https://itunespartner.apple.com/assets/downloads/ParallaxExporter_Apps.zip) to generate an `.lsr` from official templates right within Photoshop. This exporter namely relies on the naming of the root layer which must be kept as is so that content is correctly found and identified (individual layers can apparently be freely named).
 - [Parallax Previewer](http://itunespartner.apple.com/assets/downloads/Parallax%20Previewer.dmg) to check an `.lsr` or merge two `.lsr` files into one and export the result.
 
-Documentation is available as PDF files in these `dmg` installers. Note that the Photoshop exporter generates a single variant for each layer (@1x sRGB, @2x P3 or @2x sRGB). Creating an app icon according to the above specifications therefore requires two exports and a merge in Parallax Previewer.
+Documentation is available as PDF files in these `dmg` installers. Note that the Photoshop exporter goal is to generate a single variant for each layer (@1x sRGB, @2x P3 or @2x sRGB, for example). Creating an app icon according to the above specifications therefore requires two individual exports from Photoshop and a merge with Parallax Previewer.
 
 ### Fixing the tools
 
 Sadly these tools are buggy and not updated since a long time:
 
 - The Photoshop exporter generates incorrect `.lsr` size and position metadata. For a merge between @1x and @2x resources to be successful, canvas sizes, positions and dimensions specified in the `.lsr` files to be merged must match and correspond to the asset size (without scaling which is an artifact of pixel density). For a @2x resource, the current exporter incorrectly multiplies all dimensions by 2, making the merge for an app icon impossible.
+- If an asset has no @1x and @2x variants, its scale must be omitted for Xcode to recognize the asset as valid (otherwise a warning is displayed). The Photoshop exporter fails to satisfy this rule and embeds 1x as scale factor for all variants, even if they have the same size.
 - The Photoshop exporter declares layers as `universal`, but it is better to declare them as `tv` so that Xcode displays only TV images (other platforms are not relevant).
 - The Parallax Previewer does not recognize the constant `display-P3` which a single P3 Photoshop export generates. When merging such a resource, the Parallax Previewer replaces its type with sRGB in the final `.lsr`, which is incorrect.
 - The Parallax Previewer tool incorrectly provides `srgb` and `display-p3` as color profiles in exported `.lsr` files, but Xcode understands only `sRGB` and `display-P3`. When imported into an Xcode resource catalog, resources generate warnings. Though this seems to work, avoiding warnings is always better.
 
 To fix these issues:
 
-1. Replace with administrator rights the `/Applications/Adobe Photoshop 2020/Plug-ins/Generator/lsr-generator/png_generator.js` file with the one supplied in this repository. The path will change between Photoshop versions but since I am not Photoshop user I don't know whether there is a pattern to script it. This file:
+1. Replace with administrator rights the `/Applications/Adobe Photoshop 2020/Plug-ins/Generator/lsr-generator/png_generator.js` file with the one supplied in this repository. The path will change between Photoshop versions but since I am no Photoshop user I don't know whether there is a pattern to script it. This file:
 	- Fixes size and position by dividing them by the image scale.
-   - Replaces `universal` with `tv`.
-   - Since the Parallax Previewer secretly recognizes `displayp3` for P3 color profile, and since a single exported P3 resource is not really useful without being merged, we it uses this value for P3 output.
+	- Replaces `universal` with `tv`.
+	- Uses `displayp3` as type for P3 exports. The Parallax Previewer namely secretly recognizes `displayp3` for P3 color profile, and since a single exported P3 resource is not really useful without being merged with an sRGB one, we can uses this value for all P3 output.
 2. To fix the profile constants generated by the Parallax Previewer which Xcode does not understand, patch the binary with the following terminal command, valid for version 1.0.3:
 	```
 	printf 'display-P3' | dd of="/Applications/Parallax Previewer.app/Contents/MacOS/Parallax Previewer" bs=1 seek=137864 count=10 conv=notrunc; printf 'sRGB' | dd of="/Applications/Parallax Previewer.app/Contents/MacOS/Parallax Previewer" bs=1 seek=138073 count=4 conv=notrunc
 	```
 	A similar command is easy to generate for other versions (though I doubt updates will be delivered) by simply looking for the `srgb` and `display-p3` strings in the binary with a hex editor, and updating the offests where the values are located.
 
-### Exporting an app icon
+You are now all set to generate `.lsr` icons which can be immediately imported into Xcode asset catalogs without any issues.
+
+The only issue that cannot be fixed by patching Parallax Previewer is removal of 1x scale specifiers in App Store icon resources (for other images, the @1x and @2x variants are always provided). Since this is an edge case with an easy manual fix, we can live with it.
+
+### App icon
 
 To export an app icon, e.g. with the best setup sRGB@1x and P3@2x:
 
-- Use the sRGB normal template to design the icon and use the exporter to get the corresponding `.lsr`.
-- Use the P3 @2x template to design the high resolution variant and use the exporter to get a second corresponding `.lsr`.
+- Use the sRGB @1x `Template-Icon-App-Small-400x240.pxd` template to design the icon and use the exporter to get the corresponding `.lsr`.
+- Use the P3 @2x `Template-Icon-App-Small-400x240-P3@2x.pxd` template to design the other variant and use the exporter to get a second corresponding `.lsr`.
 - Open the first `.lsr` with the Parallax Previewer tool.
 - Use File > Merge to merge the second `.lsr` into the first one. Each layer should have a normal and high quality variant you can switch between.
-- Use File > Export > LSR... to export the merged `.lsr`, which can then be dragged and dropped onto an Xcode asset catalog. No warnings should be displayed and all resources should be in place with correct color profile.
+- Use File > Export > LSR... to export the merged `.lsr`, which can then be dragged and dropped onto an Xcode asset catalog. 
 
-### Exporting an App Store icon
+When importing the `.lsr` into Xcode, no warnings should be displayed and all resources should be in place with correct color profile.
 
-To export an App Store icon, e.g. with the best setup sRGB@ and SRGB:
+### App Store icon
 
-- Use the sRGB normal template to design the icon and use the exporter to get the corresponding `.lsr`.
-- Use the P3 normal template to design the P3 variant and use the exporter to get a second corresponding `.lsr`.
+To export an App Store icon with P3 variant as well:
+
+- Use the sRGB `Template-Icon-App-App-Store-1280x768.pxd` template to design the icon and use the exporter to get the corresponding `.lsr`.
+- Use the P3 `Template-Icon-App-App-Store-1280x768-P3@2x.pxd` template to design the other variant and use the exporter to get a second corresponding `.lsr`.
 - Open the first `.lsr` with the Parallax Previewer tool.
 - Use File > Merge to merge the second `.lsr` into the first one. Each layer should have a normal and high quality variant you can switch between.
-- Use File > Export > LSR... to export the merged `.lsr`, which can then be dragged and dropped onto an Xcode asset catalog. No warnings should be displayed and all resources should be in place with correct color profile.
+- Use File > Export > LSR... to export the merged `.lsr`, which can then be dragged and dropped onto an Xcode asset catalog.
+
+When importing the `.lsr` into an asset catalog, warnings will be generated because of the scale 1x appearing for all variants. Just right click on the folder stack in the asset catalog, select Show In Finder, and perform a search and replace to remove all _"scale" : "1x"_ entries. When returning to Xcode, all warnings have disappeared and the images are in place.
